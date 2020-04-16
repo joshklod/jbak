@@ -9,73 +9,101 @@ trap_int () {
 	exit 1
 }
 
+  black=`tput setaf 0`
     red=`tput setaf 1`
+  green=`tput setaf 2`
  yellow=`tput setaf 3`
+   blue=`tput setaf 4`
 magenta=`tput setaf 5`
+   cyan=`tput setaf 6`
+  white=`tput setaf 7`
   reset=`tput op`
+
+print_c () {
+	local    color=$1
+	local   fmtstr=$2
+	shift 2
+
+	printf "%s$fmtstr%s\n" "${!color}" "$@" "$reset"
+}
 
 declare -a included excluded
 
-while read -r line; do
-	case $line in
-		""|\#*) continue ;; # Empty lines/comments
-		/*) # Included Directories
-			mode=include
-			;;
-		!/*) # Excluded Directories
-			mode=exclude
-			line=${line:1}
-			;;
-		!*) # Excluded Patterns
-			printf '>%s<\n' "$red$line$reset"
-			continue
-			;;
-		*)
-			printf >&2 'Error parsing config file.  Invalid line:\n'
-			printf >&2 '    %s\n' "$line"
-			exit 2
-			;;
-	esac
+read_config () {
+	while read -r line; do
+		case $line in
+			""|\#*) continue ;; # Empty lines/comments
+			/*) # Included Directories
+				mode=include
+				;;
+			!/*) # Excluded Directories
+				mode=exclude
+				line=${line:1}
+				;;
+			!*) # Excluded Patterns
+				print_c red '>%s<' "$line"
+				continue
+				;;
+			*)
+				printf >&2 'Error parsing config file.  Invalid line:\n'
+				printf >&2 '    %s\n' "$line"
+				exit 2
+				;;
+		esac
 
-	# Quote spaces for eval
-	line=`sed -e 's/\s/\\\&/g' <<< "$line"`
-	# line=$(sed -e 's/\(^\|[^\]\)\(\(\\\{2\}\)*\s\)/\1\\\2/g' <<< "$line")
-	eval "files=( $line )" # Expand shell globs
+		# Quote spaces for eval
+		line=`sed -e 's/\s/\\\&/g' <<< "$line"`
+		# line=$(sed -e 's/\(^\|[^\]\)\(\(\\\{2\}\)*\s\)/\1\\\2/g' <<< "$line")
+		eval "files=( $line )" # Expand shell globs
+		files=("${files[@]%%/}") # Strip trailing slashes
 
-	case $mode in
-		include) # Included Directories
-			for i in "${!files[@]}"; do
-				if [ -d "${files[$i]}" ]; then
-					files[$i]=${files[$i]%%/} # Strip trailing slashes
+		case $mode in
+			include) # Included Directories
+				declare -n ours=included
+				declare -n theirs=excluded
+				c_ls=blue
+				c_mine_add=green
+				c_mine_rm=red
+				c_theirs_add=cyan
+				c_theirs_rm=magenta
+
+				included+=("${files[@]}")
+				;;
+			exclude) # Excluded Directories
+				declare -n ours=excluded
+				declare -n theirs=included
+				c_ls=yellow
+				c_mine_add=cyan
+				c_mine_rm=magenta
+				c_theirs_add=green
+				c_theirs_rm=red
+				;;
+			*)
+				printf >&2 'Unknown error occurred.  Exiting.\n'
+				exit 99
+				;;
+		esac
+
+		for file in "${files[@]}"; do
+			print_c $c_ls '>%s<' "$file"
+			for i in "${!theirs[@]}"; do
+				printf '>%s<\n' "${theirs[$i]}"
+				if [[ ${theirs[$i]} == $file ||
+						-d $file && ${theirs[$i]} =~ ^$file/ ]]
+				then
+					print_c $c_theirs_rm 'Removed >%s<' "${theirs[$i]}"
+					unset "theirs[$i]"
+				elif [[ -d ${theirs[$i]} &&
+						$file =~ ^${theirs[$i]}/ ]]; then
+					print_c $c_mine_add 'Added >%s<' "$file"
+					ours+=("$file")
 				fi
 			done
-			included+=("${files[@]}")
-			;;
-		exclude) # Excluded Directories
-			for file in "${files[@]}"; do
-				printf '>%s<\n' "$yellow$file$reset"
-				[ -d "$file" ] && file=${file%%/} # Strip trailing slashes
-				for i in "${!included[@]}"; do
-					printf '>%s<\n' "${included[$i]}"
-					if [[ ${included[$i]} == $file ||
-							-d $file && ${included[$i]} =~ ^$file/ ]]
-					then
-						printf 'Removed >%s<\n' "$red${included[$i]}$reset"
-						unset "included[$i]"
-					elif [[ -d ${included[$i]} &&
-							$file =~ ^${included[$i]}/ ]]; then
-						printf 'Excluded >%s<\n' "$magenta$file$reset"
-						excluded+=("$file")
-					fi
-				done
-			done
-			;;
-		*)
-			printf >&2 'Unknown error occurred.  Exiting.\n'
-			exit 99
-			;;
-	esac
-done < 'test_dirs'
+		done
+	done < "$1"
+}
+
+read_config 'test_dirs'
 
 printf 'Included:\n'
 for file in "${included[@]}"; do
