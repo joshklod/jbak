@@ -1,0 +1,71 @@
+#!/bin/bash
+#
+# kbak - Backs up system files
+#
+# Authors:  Zack Klodnicki
+#           Josh Klodnicki
+# Created:  August 2017
+# Modified: 9/11/17
+
+version=2.0
+
+# Exit on any failed command
+set -o errexit
+
+config_file=/usr/local/etc/kbak_dirs
+backup_dir=/backup/test
+fname="Backup-$(date +%Y.%m.%d-%H.%M.%S).tar.gz"
+
+NUMBACKUPS=7
+
+# Parse config file
+declare -a incl_dirs excl_dirs
+incl_index=0
+excl_index=0
+while read; do
+	case $REPLY in
+		"") continue ;; # Empty lines/comments
+		/*) # Included Directories
+			incl_dirs[$incl_index]="$REPLY"
+			incl_index=$((incl_index + 1))
+			;;
+		-*) # Excluded Directories
+			excl_dirs[$excl_index]="--exclude=${REPLY:1}"
+			excl_index=$((excl_index + 1))
+			;;
+		*)
+			echo "Error parsing config file. Invalid line:" >&2
+			echo "    $REPLY" >&2
+			exit 2
+			;;
+	esac
+done < <(sed -e 's/\s*#.*$//' "$config_file") # Strip comments
+
+echo -e "Welcome to kbak v$version!\n"
+echo "New backup will be named: $fname"
+
+echo "Changing directory..."
+cd "$backup_dir"
+
+echo "Creating new backup..."
+tar "${excl_dirs[@]}" -czf "$fname" "${incl_dirs[@]}"
+
+echo "Finding oldest backup..."
+OLDFNAME=$(cat ".backupName.1")
+
+echo "Removing oldest backup..."
+rm "$OLDFNAME"
+
+echo "Shifting prevoius backup names..."
+
+for i in $( seq $( expr $NUMBACKUPS - 1));
+do
+	FROM=$(echo ".backupName.$( expr $i + 1)")
+	TO=$(echo ".backupName.$i")
+	mv "$FROM" "$TO"
+done
+
+echo "Saving name of new backup..."
+echo -n "$fname" > ".backupName.$NUMBACKUPS"
+
+echo "Done!";

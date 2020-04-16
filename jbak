@@ -1,0 +1,87 @@
+#!/bin/bash
+
+set   -o errexit
+shopt -s dotglob extglob globstar nullglob
+
+trap trap_int INT
+trap_int () {
+	printf >&2 'Interrupted\n'
+	exit 1
+}
+
+    red=`tput setaf 1`
+ yellow=`tput setaf 3`
+magenta=`tput setaf 5`
+  reset=`tput op`
+
+declare -a included excluded
+
+while read -r line; do
+	case $line in
+		""|\#*) continue ;; # Empty lines/comments
+		/*) # Included Directories
+			mode=include
+			;;
+		!/*) # Excluded Directories
+			mode=exclude
+			line=${line:1}
+			;;
+		!*) # Excluded Patterns
+			printf '>%s<\n' "$red$line$reset"
+			continue
+			;;
+		*)
+			printf >&2 'Error parsing config file.  Invalid line:\n'
+			printf >&2 '    %s\n' "$line"
+			exit 2
+			;;
+	esac
+
+	# Quote spaces for eval
+	line=`sed -e 's/\s/\\\&/g' <<< "$line"`
+	# line=$(sed -e 's/\(^\|[^\]\)\(\(\\\{2\}\)*\s\)/\1\\\2/g' <<< "$line")
+	eval "files=( $line )" # Expand shell globs
+
+	case $mode in
+		include) # Included Directories
+			for i in "${!files[@]}"; do
+				if [ -d "${files[$i]}" ]; then
+					files[$i]=${files[$i]%%/} # Strip trailing slashes
+				fi
+			done
+			included+=("${files[@]}")
+			;;
+		exclude) # Excluded Directories
+			for file in "${files[@]}"; do
+				printf '>%s<\n' "$yellow$file$reset"
+				[ -d "$file" ] && file=${file%%/} # Strip trailing slashes
+				for i in "${!included[@]}"; do
+					printf '>%s<\n' "${included[$i]}"
+					if [[ ${included[$i]} == $file ||
+							-d $file && ${included[$i]} =~ ^$file/ ]]
+					then
+						printf 'Removed >%s<\n' "$red${included[$i]}$reset"
+						unset "included[$i]"
+					elif [[ -d ${included[$i]} &&
+							$file =~ ^${included[$i]}/ ]]; then
+						printf 'Excluded >%s<\n' "$magenta$file$reset"
+						excluded+=("$file")
+					fi
+				done
+			done
+			;;
+		*)
+			printf >&2 'Unknown error occurred.  Exiting.\n'
+			exit 99
+			;;
+	esac
+done < 'test_dirs'
+
+printf 'Included:\n'
+for file in "${included[@]}"; do
+	printf '>%s<\n' "$file"
+done
+printf 'Excluded:\n'
+for file in "${excluded[@]}"; do
+	printf '>%s<\n' "$file"
+done

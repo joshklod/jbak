@@ -1,0 +1,19 @@
+# comment
+/name with spaces	and	tabs
+
+#another comment
+/weird^characters@in#/file\*name$
+/path\with\\lots\\\of\\\\back\\\\\slashes
+/another\ one\\ with\\\ lots\\\\ of\\\\\ spaces
+/really                                   long                             file/                                    name
+  # comment with spaces   
+	/file/with/leading/and/trailing/spaces  	
+/home/josh/jbak_test/filenames/*
+/keep trailing spaces    \ 
+/home/josh/jbak_test/**/*.incpat
+/home/josh/jbak_test/**/include
+/home/josh/jbak_test/include.d/
+!/home/josh/jbak_test/include.d/exclude.d/
+!/home/josh/jbak_test/**/exclude
+!/home/josh/jbak_test/**/*.expat
+/home/josh/jbak_test/include.d/subdir a/exception.expat
