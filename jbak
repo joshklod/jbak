@@ -62,19 +62,17 @@ read_config () {
 				declare -n ours=included
 				declare -n theirs=excluded
 				c_ls=blue
-				c_mine_add=green
-				c_mine_rm=red
+				c_ours_add=green
+				c_ours_rm=red
 				c_theirs_add=cyan
 				c_theirs_rm=magenta
-
-				included+=("${files[@]}")
 				;;
 			exclude) # Excluded Directories
 				declare -n ours=excluded
 				declare -n theirs=included
 				c_ls=yellow
-				c_mine_add=cyan
-				c_mine_rm=magenta
+				c_ours_add=cyan
+				c_ours_rm=magenta
 				c_theirs_add=green
 				c_theirs_rm=red
 				;;
@@ -86,6 +84,24 @@ read_config () {
 
 		for file in "${files[@]}"; do
 			print_c $c_ls '>%s<' "$file"
+			if [ "$mode" = 'include' ]; then
+				add_file='true'
+			else
+				add_file='false'
+			fi
+			print_c $c_ls 'Searching ours...'
+			for i in "${!ours[@]}"; do
+				printf '>%s<\n' "${ours[$i]}"
+				if [[ ${ours[$i]} == $file || -d ${ours[$i]} && $file =~ ^${ours[$i]}/ ]]; then
+					print_c $c_ls 'Skipping >%s<' "$file"
+					add_file='false'
+					break
+				elif [[ -d $file && ${ours[$i]} =~ ^$file/ ]]; then
+					print_c $c_ours_rm 'Removed >%s<' "${ours[$i]}"
+					unset "ours[$i]"
+				fi
+			done
+			print_c $c_ls 'Searching theirs...'
 			for i in "${!theirs[@]}"; do
 				printf '>%s<\n' "${theirs[$i]}"
 				if [[ ${theirs[$i]} == $file ||
@@ -95,10 +111,15 @@ read_config () {
 					unset "theirs[$i]"
 				elif [[ -d ${theirs[$i]} &&
 						$file =~ ^${theirs[$i]}/ ]]; then
-					print_c $c_mine_add 'Added >%s<' "$file"
-					ours+=("$file")
+					print_c $c_ours_add 'Adding >%s<' "$file"
+					add_file='true'
+					break
 				fi
 			done
+			if [ "$add_file" = 'true' ]; then
+				print_c $c_ours_add 'Added >%s<' "$file"
+				ours+=("$file")
+			fi
 		done
 	done < "$1"
 }
