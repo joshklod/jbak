@@ -27,17 +27,17 @@ print_c () {
 	printf "%s$fmtstr%s\n" "${!color}" "$@" "$reset"
 }
 
-declare -a included excluded
+declare -A file_list
 
 read_config () {
 	while read -r line; do
 		case $line in
 			""|\#*) continue ;; # Empty lines/comments
 			/*) # Included Directories
-				mode=include
+				mode='TRUE'
 				;;
 			!/*) # Excluded Directories
-				mode=exclude
+				mode='FALSE'
 				line=${line:1}
 				;;
 			!*) # Excluded Patterns
@@ -55,82 +55,37 @@ read_config () {
 		line=`sed -e 's/\s/\\\&/g' <<< "$line"`
 		# line=$(sed -e 's/\(^\|[^\]\)\(\(\\\{2\}\)*\s\)/\1\\\2/g' <<< "$line")
 		eval "files=( $line )" # Expand shell globs
-		files=("${files[@]%%/}") # Strip trailing slashes
 
-		case $mode in
-			include) # Included Directories
-				declare -n ours=included
-				declare -n theirs=excluded
-				c_ls=blue
-				c_ours_add=green
-				c_ours_rm=red
-				c_theirs_add=cyan
-				c_theirs_rm=magenta
-				;;
-			exclude) # Excluded Directories
-				declare -n ours=excluded
-				declare -n theirs=included
-				c_ls=yellow
-				c_ours_add=cyan
-				c_ours_rm=magenta
-				c_theirs_add=green
-				c_theirs_rm=red
-				;;
-			*)
-				printf >&2 'Unknown error occurred.  Exiting.\n'
-				exit 99
-				;;
-		esac
+		for new_file in "${files[@]}"; do
+			print_c green '>%s<\t\t%s' "$new_file" "$mode"
+			if [ -d "$new_file" ]; then
+				new_file=${new_file%%/} # Strip trailing slashes
 
-		for file in "${files[@]}"; do
-			print_c $c_ls '>%s<' "$file"
-			if [ "$mode" = 'include' ]; then
-				add_file='true'
-			else
-				add_file='false'
+				for file in "${!file_list[@]}"; do
+					if [[ $file =~ ^$new_file/ ]]; then
+						print_c red '>%s<\t\t%s' "$file" "${file_list[$file]}"
+						unset "file_list[$file]"
+					# elif [[ -d $file && $new_file =~ ^$file/ ]]; then
+					# 	print_c yellow 'Skipping >%s<' "$new_file"
+					# 	add_file='false'
+					# 	break
+					else
+						printf '>%s<\t\t%s\n' "$file" "${file_list[$file]}"
+					fi
+				done
 			fi
-			print_c $c_ls 'Searching ours...'
-			for i in "${!ours[@]}"; do
-				printf '>%s<\n' "${ours[$i]}"
-				if [[ ${ours[$i]} == $file || -d ${ours[$i]} && $file =~ ^${ours[$i]}/ ]]; then
-					print_c $c_ls 'Skipping >%s<' "$file"
-					add_file='false'
-					break
-				elif [[ -d $file && ${ours[$i]} =~ ^$file/ ]]; then
-					print_c $c_ours_rm 'Removed >%s<' "${ours[$i]}"
-					unset "ours[$i]"
-				fi
-			done
-			print_c $c_ls 'Searching theirs...'
-			for i in "${!theirs[@]}"; do
-				printf '>%s<\n' "${theirs[$i]}"
-				if [[ ${theirs[$i]} == $file ||
-						-d $file && ${theirs[$i]} =~ ^$file/ ]]
-				then
-					print_c $c_theirs_rm 'Removed >%s<' "${theirs[$i]}"
-					unset "theirs[$i]"
-				elif [[ -d ${theirs[$i]} &&
-						$file =~ ^${theirs[$i]}/ ]]; then
-					print_c $c_ours_add 'Adding >%s<' "$file"
-					add_file='true'
-					break
-				fi
-			done
-			if [ "$add_file" = 'true' ]; then
-				print_c $c_ours_add 'Added >%s<' "$file"
-				ours+=("$file")
-			fi
+
+			file_list[$new_file]=$mode
 		done
 	done < "$1"
 }
 
 read_config 'test_dirs'
 
-printf 'Included:\n'
-for file in "${included[@]}"; do
-	printf '>%s<\n' "$file"
-done
-printf 'Excluded:\n'
-for file in "${excluded[@]}"; do
-	printf '>%s<\n' "$file"
+print_c yellow '\nFile List:'
+for file in "${!file_list[@]}"; do
+	if [ "${file_list[$file]}" = 'TRUE' ]; then c=green
+	else                                        c=red
+	fi
+	print_c $c '>%s<' "$file"
 done
