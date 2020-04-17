@@ -3,6 +3,8 @@
 set   -o errexit
 shopt -s dotglob extglob globstar nullglob
 
+GLOBIGNORE='*(*/)@(.|..)';
+
 trap trap_int INT
 trap_int () {
 	printf >&2 'Interrupted\n'
@@ -58,7 +60,16 @@ read_config () {
 
 		for new_file in "${files[@]}"; do
 			# print_c yellow '>%s<\t\t%s' "$new_file" "$mode"
-			[ -d "$new_file" ] && new_file=${new_file%%/} # Strip trailing slashes
+			if [ -d "$new_file" ]; then
+				new_file=${new_file%%/} # Strip trailing slashes
+			elif [ -f "$new_file" ]; then
+				:
+			else
+				printf >&2 \
+						"Skipping '%s' (Not a regular file or directory)\n" \
+						"$new_file"
+				continue
+			fi
 
 			parent=''
 			for file in "${!file_list[@]}"; do
