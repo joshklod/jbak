@@ -57,25 +57,30 @@ read_config () {
 		eval "files=( $line )" # Expand shell globs
 
 		for new_file in "${files[@]}"; do
-			print_c green '>%s<\t\t%s' "$new_file" "$mode"
-			if [ -d "$new_file" ]; then
-				new_file=${new_file%%/} # Strip trailing slashes
+			# print_c yellow '>%s<\t\t%s' "$new_file" "$mode"
+			[ -d "$new_file" ] && new_file=${new_file%%/} # Strip trailing slashes
 
-				for file in "${!file_list[@]}"; do
-					if [[ $file =~ ^$new_file/ ]]; then
-						print_c red '>%s<\t\t%s' "$file" "${file_list[$file]}"
-						unset "file_list[$file]"
-					# elif [[ -d $file && $new_file =~ ^$file/ ]]; then
-					# 	print_c yellow 'Skipping >%s<' "$new_file"
-					# 	add_file='false'
-					# 	break
-					else
-						printf '>%s<\t\t%s\n' "$file" "${file_list[$file]}"
-					fi
-				done
+			parent=''
+			for file in "${!file_list[@]}"; do
+				if [[ -d $new_file && $file =~ ^$new_file/ ]]; then
+					# print_c red '>%s<\t\t%s' "$file" "${file_list[$file]}"
+					unset "file_list[$file]"
+				elif [[ -d $file && $new_file =~ ^$file/ &&
+						${#file} -gt ${#parent} ]]; then
+					# print_c cyan '>%s<\t\t%s' "$file" "${file_list[$file]}"
+					parent=$file
+				# else
+					# printf '>%s<\t\t%s\n' "$file" "${file_list[$file]}"
+				fi
+			done
+
+			if [[ -z $parent || ${file_list[$parent]} != $mode ]]; then
+				# print_c green '>%s<\t\t%s' "$new_file" "$mode"
+				file_list[$new_file]=$mode
+			else
+				# print_c red '>%s<\t\t%s' "$new_file" "$mode"
+				unset "file_list[$new_file]"
 			fi
-
-			file_list[$new_file]=$mode
 		done
 	done < "$1"
 }
@@ -83,7 +88,8 @@ read_config () {
 read_config 'test_dirs'
 
 print_c yellow '\nFile List:'
-for file in "${!file_list[@]}"; do
+printf '%s\x00' "${!file_list[@]}" | sort -z |
+while IFS= read -rd '' file; do
 	if [ "${file_list[$file]}" = 'TRUE' ]; then c=green
 	else                                        c=red
 	fi

@@ -12,8 +12,8 @@
 /keep trailing spaces    \ 
 /home/josh/jbak_test/include.d/
 !/home/josh/jbak_test/include.d/exclude.d/
-!/home/josh/jbak_test/**/*.expat
 /home/josh/jbak_test/**/*.incpat
+!/home/josh/jbak_test/**/*.expat
 /home/josh/jbak_test/**/include
 !/home/josh/jbak_test/**/exclude
 /home/josh/jbak_test/include.d/subdir a/exception.expat
