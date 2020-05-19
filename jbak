@@ -85,7 +85,8 @@ read_config () {
 				fi
 			done
 
-			if [[ -z $parent || ${file_list[$parent]} != $mode ]]; then
+			if [[ ( -z $parent && $mode == TRUE ) || \
+					( -n $parent && $mode != ${file_list[$parent]} ) ]]; then
 				# print_c green '>%s<\t\t%s' "$new_file" "$mode"
 				file_list[$new_file]=$mode
 			else
