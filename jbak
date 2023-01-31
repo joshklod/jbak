@@ -54,8 +54,7 @@ read_config () {
 		esac
 
 		# Quote spaces for eval
-		line=`sed -e 's/\s/\\\&/g' <<< "$line"`
-		# line=$(sed -e 's/\(^\|[^\]\)\(\(\\\{2\}\)*\s\)/\1\\\2/g' <<< "$line")
+		line=$(sed -e 's/\(\(\\\\\)*\)\\\?\(\s\)/\1\\\3/g' <<< "$line")
 		eval "files=( $line )" # Expand shell globs
 
 		for new_file in "${files[@]}"; do
